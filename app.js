@@ -1,17 +1,24 @@
+'use strict';
 
 var express = require('express');
 var compression = require('compression');
 var bodyParser = require('body-parser');
-function create (env, ctx) {
-  ///////////////////////////////////////////////////
-  // api and json object variables
-  ///////////////////////////////////////////////////
-  var api = require('./lib/api/')(env, ctx);
 
+function create (env, ctx) {
   var app = express();
   var appInfo = env.name + ' ' + env.version;
   app.set('title', appInfo);
   app.enable('trust proxy'); // Allows req.secure test on heroku https connections.
+
+  if (ctx.bootErrors && ctx.bootErrors.length > 0) {
+    app.get('*', require('./lib/booterror')(ctx));
+    return app;
+  }
+
+  ///////////////////////////////////////////////////
+  // api and json object variables
+  ///////////////////////////////////////////////////
+  var api = require('./lib/api/')(env, ctx);
 
   app.use(compression({filter: function shouldCompress(req, res) {
     //TODO: return false here if we find a condition where we don't want to compress
@@ -25,6 +32,8 @@ function create (env, ctx) {
   //}
   app.use('/api/v1', bodyParser({limit: 1048576 * 50 }), api);
 
+  app.use('/api/v2/properties', ctx.properties);
+  app.use('/api/v2/authorization', ctx.authorization.endpoints);
 
   // pebble data
   app.get('/pebble', ctx.pebble);
